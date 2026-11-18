@@ -26,7 +26,7 @@ const SELECT_FALLBACK: string =
   "id, student_id, title, summary, content, sources, status, awarded_points, reviewer_feedback, submitted_at";
 
 export default function ResearchPage() {
-  const { user, isAdmin, loading: sessionLoading } = useSession();
+  const { user, isStaff, loading: sessionLoading } = useSession();
   const content = useSiteContent("research");
   const [supabase] = useState(() => createClient());
   const [research, setResearch] = useState<Research[]>([]);
@@ -149,9 +149,9 @@ export default function ResearchPage() {
               ✍️ Jamoa tadqiqotini yuborish
             </button>
           )}
-          {isAdmin && (
+          {isStaff && (
             <Link href="/admin/research" className="btn btn-lime">
-              ⚙️ Boshqarish (Admin)
+              ⚙️ Tekshirish
             </Link>
           )}
         </div>

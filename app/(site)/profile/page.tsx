@@ -3,6 +3,7 @@
 import { FallingLeaves } from "@/components/effects";
 
 import Link from "next/link";
+import { displayLogin } from "@/lib/login";
 import { useAppRouter } from "@/lib/nav";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
@@ -29,7 +30,7 @@ const LEVELS = [
 
 export default function ProfilePage() {
   const router = useAppRouter();
-  const { user, profile, isAdmin, loading } = useSession();
+  const { user, profile, isAdmin, isStaff, isOwner, loading } = useSession();
   const [supabase] = useState(() => createClient());
   const [activity, setActivity] = useState<Activity[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
@@ -142,19 +143,19 @@ export default function ProfilePage() {
             </div>
             <div>
               <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-leaf-300">
-                {isAdmin ? "Administrator" : "Eko-qahramon"}
+                {isOwner ? "Bosh admin" : isAdmin ? "Administrator" : isStaff ? "Mentor" : "Eko-qahramon"}
               </p>
               <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">{profile?.full_name || "Foydalanuvchi"}</h1>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
                 {profile?.class_name && <span className="chip bg-white/10 text-white">🏫 {profile.class_name}-sinf</span>}
                 {profile?.school_code && <span className="chip bg-white/10 text-white">🔑 {profile.school_code}</span>}
-                <span className="chip bg-white/10 text-white">✉️ {user.email}</span>
+                <span className="chip bg-white/10 text-white">👤 {displayLogin(user.email, profile?.username)}</span>
               </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {isAdmin && (
-              <Link href="/admin" className="btn btn-lime">⚙️ Admin panel</Link>
+            {isStaff && (
+              <Link href="/admin" className="btn btn-lime">⚙️ {isAdmin ? "Admin panel" : "Mentor paneli"}</Link>
             )}
             <button onClick={logout} className="btn bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20">
               Chiqish

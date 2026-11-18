@@ -12,12 +12,21 @@ export type Profile = {
   school_id: number | null;
   points: number | null;
   role: string | null;
+  username?: string | null;
+  is_owner?: boolean | null;
 };
 
 export type SessionState = {
   user: User | null;
   profile: Profile | null;
+  /** To'liq admin: saytni boshqaradi */
   isAdmin: boolean;
+  /** Mentor: faqat topshiriqlarni tekshiradi */
+  isMentor: boolean;
+  /** Admin yoki mentor — admin panelga kira oladi */
+  isStaff: boolean;
+  /** Bosh admin (Supabase'da tayinlangan) */
+  isOwner: boolean;
   loading: boolean;
   refresh: () => Promise<void>;
 };
@@ -40,11 +49,17 @@ function useSessionLoader(): SessionState {
       setUser(currentUser);
 
       if (currentUser) {
-        const { data: profileData } = await supabase
+        const base = "full_name, class_name, school_code, school_id, points, role";
+        const first = await supabase
           .from("profiles")
-          .select("full_name, class_name, school_code, school_id, points, role")
+          .select(`${base}, username, is_owner`)
           .eq("id", currentUser.id)
           .maybeSingle();
+        let profileData = first.data;
+        if (first.error) {
+          // Yangi migratsiya hali ishga tushirilmagan bo'lsa — eski ustunlar bilan
+          ({ data: profileData } = await supabase.from("profiles").select(base).eq("id", currentUser.id).maybeSingle());
+        }
         setProfile((profileData as Profile) ?? null);
       } else {
         setProfile(null);
@@ -72,6 +87,9 @@ function useSessionLoader(): SessionState {
     user,
     profile,
     isAdmin: profile?.role === "admin",
+    isMentor: profile?.role === "mentor",
+    isStaff: profile?.role === "admin" || profile?.role === "mentor",
+    isOwner: profile?.role === "admin" && !!profile?.is_owner,
     loading,
     refresh: load,
   };

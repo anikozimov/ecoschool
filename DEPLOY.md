@@ -13,21 +13,27 @@ Kerak bo‘ladi: Cloudflare akkaunt (bepul), GitHub akkaunt, mavjud Supabase loy
 1. **SQL Editor → New query** → `supabase/schema.sql` faylini **to‘liq** qo‘ying → **Run**.
    Bu bitta fayl butun bazani yaratadi: jadvallar, ballar, reytinglar, xavfsizlik (RLS), rasm saqlash joylari
    va birinchi maktab (kodi **ECOIXMI**, 5–11-sinflar A/B). `migrations/` papkasidagi fayllar **kerak emas**.
-2. Saytda ro‘yxatdan o‘ting (maktab kodi: `ECOIXMI`), emailni tasdiqlang.
-3. O‘zingizni admin qiling (SQL Editor'da, emailni almashtiring):
+2. Saytda **login va parol** bilan ro‘yxatdan o‘ting (maktab kodi: `ECOIXMI`).
+3. O‘zingizni **bosh admin** qiling (SQL Editor'da, loginni almashtiring):
    ```sql
-   update public.profiles set role = 'admin'
-   where id = (select id from auth.users where email = 'sizning@email.com');
+   update public.profiles set role = 'admin', is_owner = true where username = 'sizning_login';
    ```
 4. Admin panel → **Maktab va sinflar** bo‘limida maktab nomi, kodi va sinflarni o‘zingizga moslang.
 
 **B) Mavjud (eski) ECO SCHOOL bazasi bo‘lsa:**
 1. Zaxira nusxa (backup) oling.
 2. `supabase/security-check.sql` bilan RLS yoqilganini tekshiring (batafsil — `SECURITY.md`).
-3. `supabase/migrations/20261117_admin_panel.sql`, keyin `supabase/migrations/20261118_schools_classes.sql` ni ishga tushiring.
+3. Tartib bilan ishga tushiring: `20261117_admin_panel.sql` → `20261118_schools_classes.sql` → `20261119_login_mentor_owner.sql`
+   (hammasi `supabase/migrations/` ichida).
+4. O‘zingizni bosh admin qiling (emailni almashtiring):
+   ```sql
+   update public.profiles set role = 'admin', is_owner = true
+   where id = (select id from auth.users where email = 'sizning@email.com');
+   ```
 
 **Ikkala holatda ham:**
-- **Authentication → Providers → Email:** “Confirm email” yoqilgan, parol kamida 8 belgi.
+- **Authentication → Sign In / Providers → Email:** **“Confirm email” O‘CHIRILGAN** bo‘lsin
+  (o‘quvchilar email emas, login bilan kiradi), parol kamida 8 belgi.
 - **Project Settings → API** dan ikkita qiymatni ko‘chirib oling:
    - **Project URL** → `https://xxxx.supabase.co`
    - **publishable (anon) key**
@@ -116,3 +122,19 @@ Domen Cloudflare'da bo‘lsa, DNS avtomatik sozlanadi. Keyin Supabase'dagi **Sit
   `scripts/cf-postbuild.mjs` tomonidan avtomatik yoziladi.
 - Cloudflare sozlamasi: `wrangler.jsonc` (statik fayllar, 404 sahifa).
 - Kerak bo‘lsa, Vercel yoki boshqa Node.js hostingda ham ishlaydi: `npm run build` + `npm start`.
+
+---
+
+## Login, rollar va bosh admin
+
+- **Kirish:** o‘quvchi login (masalan `aziza_k`) va parol bilan ro‘yxatdan o‘tadi va kiradi. Email kerak emas.
+  Oldin email bilan ochilgan akkauntlar “Login” maydoniga emailni yozib kiraveradi.
+- **Parolni unutsa:** Admin panel → Foydalanuvchilar → ✏️ → “Parolni tiklash”.
+- **Rollar:**
+  | Rol | Nima qila oladi |
+  |-----|-----------------|
+  | O‘quvchi | Topshiriq yuboradi, ball to‘playdi |
+  | Mentor | Challenge, recycling va tadqiqotlarni tekshiradi, ball beradi |
+  | Admin | Hammasini boshqaradi; mentor tayinlaydi |
+  | 👑 Bosh admin | Admin kabi + adminlarni tayinlaydi/oladi. Faqat SQL Editor'dan tayinlanadi; sayt orqali uni hech kim adminlikdan ololmaydi, o‘chira olmaydi, parolini o‘zgartira olmaydi |
+- Ichki email domeni `ecoschool.uz` (o‘zgartirish: `NEXT_PUBLIC_LOGIN_DOMAIN` build o‘zgaruvchisi). Uni keyin almashtirmang — eski loginlar ishlamay qoladi.

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { initials, useSession } from "@/lib/session";
 import { AdminTitle } from "@/components/admin/AdminShell";
+import { ROLE_LABEL } from "@/lib/login";
 import { Alert, ConfirmDialog, EmptyState, Modal, Skeleton, Spinner } from "@/components/ui";
 
 type Student = {
@@ -13,10 +14,19 @@ type Student = {
   points: number | null;
   role: string | null;
   school_id?: string | number | null;
+  username?: string | null;
+  is_owner?: boolean | null;
+};
+
+const ROLES = ["student", "mentor", "admin"] as const;
+const ROLE_TEXT: Record<string, string> = {
+  student: "Oddiy foydalanuvchi: topshiriq yuboradi, ball to‘playdi.",
+  mentor: "Challenge, recycling va tadqiqotlarni tekshirib, ball beradi. Saytni boshqara olmaydi.",
+  admin: "Hamma narsani boshqaradi: topshiriqlar, sahifalar, maktablar, foydalanuvchilar.",
 };
 
 export default function AdminStudentsPage() {
-  const { user } = useSession();
+  const { user, isOwner } = useSession();
   const [supabase] = useState(() => createClient());
   const [rows, setRows] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,12 +40,18 @@ export default function AdminStudentsPage() {
   const [className, setClassName] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
-  const [roleChange, setRoleChange] = useState<Student | null>(null);
+  const [roleChange, setRoleChange] = useState<{ s: Student; next: string } | null>(null);
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [newPassword, setNewPassword] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ text: string; error: boolean } | null>(null);
   // Maktab sinflari ro'yxati (Maktab va sinflar bo'limi sozlangan bo'lsa)
   const [schoolClasses, setSchoolClasses] = useState<string[] | null>(null);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from("profiles").select("id, full_name, class_name, points, role, school_id");
+    const base = "id, full_name, class_name, points, role, school_id";
+    let { data, error } = await supabase.from("profiles").select(`${base}, username, is_owner`);
+    if (error) ({ data, error } = await supabase.from("profiles").select(base));
     if (error) {
       console.error(error);
       setMessage({ text: "O‘quvchilar ro‘yxatini yuklab bo‘lmadi (admin o‘qish ruxsatini tekshiring).", error: true });
@@ -55,17 +71,21 @@ export default function AdminStudentsPage() {
   const q = query.trim().toLowerCase();
   const visible = rows
     .filter((r) => cls === "all" || r.class_name === cls)
-    .filter((r) => !q || r.full_name?.toLowerCase().includes(q))
+    .filter((r) => roleFilter === "all" || (r.role ?? "student") === roleFilter)
+    .filter((r) => !q || r.full_name?.toLowerCase().includes(q) || r.username?.toLowerCase().includes(q))
     .sort((a, b) => (sort === "points" ? (b.points ?? 0) - (a.points ?? 0) : (a.full_name ?? "").localeCompare(b.full_name ?? "")));
 
   const totalPoints = rows.reduce((s, r) => s + (r.points ?? 0), 0);
   const admins = rows.filter((r) => r.role === "admin").length;
+  const mentors = rows.filter((r) => r.role === "mentor").length;
 
   async function openEdit(s: Student) {
     setEditing(s);
     setName(s.full_name ?? "");
     setClassName(s.class_name ?? "");
     setFormError("");
+    setNewPassword("");
+    setPwMsg(null);
     setSchoolClasses(null);
     if (s.school_id != null) {
       const { data, error } = await supabase.rpc("admin_list_classes", { p_school_id: String(s.school_id) });
@@ -96,27 +116,58 @@ export default function AdminStudentsPage() {
     setEditing(null);
   }
 
-  async function toggleRole() {
+  // Kim kimning rolini o'zgartira oladi (baza ham xuddi shuni tekshiradi)
+  function canChangeRole(t: Student) {
+    if (t.is_owner || t.id === user?.id) return false;
+    if (t.role === "admin" && !isOwner) return false;
+    return true;
+  }
+  function canResetPassword(t: Student) {
+    if (t.id === user?.id) return false;
+    if (t.is_owner) return false;
+    if (t.role === "admin" && !isOwner) return false;
+    return true;
+  }
+
+  async function changeRole() {
     if (!roleChange) return;
-    const next = roleChange.role === "admin" ? "student" : "admin";
+    const { s: target, next } = roleChange;
     setSaving(true);
-    const { data, error } = await supabase.from("profiles").update({ role: next }).eq("id", roleChange.id).select("id");
+    const { data, error } = await supabase.from("profiles").update({ role: next }).eq("id", target.id).select("id, role");
     setSaving(false);
-    if (error || !data?.length) {
+    if (error || !data?.length || (data[0] as { role: string }).role !== next) {
       console.error(error);
-      setMessage({ text: "Rolni o‘zgartirib bo‘lmadi.", error: true });
+      setMessage({ text: error?.message?.includes("Bosh admin") || error?.message?.includes("faqat bosh admin") ? error.message : "Rolni o‘zgartirib bo‘lmadi.", error: true });
     } else {
-      setRows((p) => p.map((r) => (r.id === roleChange.id ? { ...r, role: next } : r)));
-      setMessage({ text: next === "admin" ? `✓ ${roleChange.full_name} endi admin.` : `${roleChange.full_name} oddiy foydalanuvchiga aylantirildi.`, error: false });
+      setRows((p) => p.map((r) => (r.id === target.id ? { ...r, role: next } : r)));
+      setMessage({ text: `✓ ${target.full_name} endi: ${ROLE_LABEL[next]}.`, error: false });
     }
     setRoleChange(null);
+  }
+
+  async function resetPassword() {
+    if (!editing) return;
+    if (newPassword.length < 8) return setPwMsg({ text: "Parol kamida 8 ta belgi bo‘lsin.", error: true });
+    setPwBusy(true);
+    const { error } = await supabase.rpc("admin_set_password", { p_user: editing.id, p_password: newPassword });
+    setPwBusy(false);
+    if (error) {
+      console.error(error);
+      setPwMsg({
+        text: error.code === "PGRST202" ? "Avval Supabase’da yangi SQL migratsiyani ishga tushiring." : error.message || "Parolni o‘zgartirib bo‘lmadi.",
+        error: true,
+      });
+    } else {
+      setPwMsg({ text: `✓ Yangi parol o‘rnatildi. Uni ${editing.full_name}ga ayting: ${newPassword}`, error: false });
+      setNewPassword("");
+    }
   }
 
   return (
     <>
       <AdminTitle
-        title="O‘quvchilar"
-        text="Ro‘yxatni ko‘ring, qidiring va ism yoki sinfdagi xatolarni tuzating."
+        title="Foydalanuvchilar"
+        text="O‘quvchilar, mentorlar va adminlar. Ism, sinf, rol va parolni shu yerda boshqarasiz."
         action={
           <div className="flex gap-3">
             <div className="card px-4 py-3">
@@ -132,7 +183,13 @@ export default function AdminStudentsPage() {
       />
 
       <div className="mb-5 flex flex-col gap-3 md:flex-row">
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="🔍 Ism bo‘yicha qidirish" className="input py-2.5 md:max-w-xs" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="🔍 Ism yoki login" className="input py-2.5 md:max-w-xs" />
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="input py-2.5 md:max-w-[180px]" aria-label="Rol">
+          <option value="all">Barcha rollar</option>
+          <option value="student">O‘quvchilar</option>
+          <option value="mentor">Mentorlar</option>
+          <option value="admin">Adminlar</option>
+        </select>
         <select value={cls} onChange={(e) => setCls(e.target.value)} className="input py-2.5 md:max-w-[180px]" aria-label="Sinf">
           <option value="all">Barcha sinflar</option>
           {classes.map((c) => (
@@ -167,9 +224,18 @@ export default function AdminStudentsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-extrabold">
                     {s.full_name || "Nomsiz"}
-                    {s.role === "admin" && <span className="chip ml-2 bg-glow align-middle text-forest-950">Admin</span>}
+                    {s.is_owner ? (
+                      <span className="chip ml-2 bg-amber-300 align-middle text-forest-950">👑 Bosh admin</span>
+                    ) : s.role === "admin" ? (
+                      <span className="chip ml-2 bg-glow align-middle text-forest-950">Admin</span>
+                    ) : s.role === "mentor" ? (
+                      <span className="chip ml-2 bg-sky-300 align-middle text-forest-950">Mentor</span>
+                    ) : null}
                   </p>
-                  <p className="text-xs text-muted">{s.class_name || "Sinf ko‘rsatilmagan"}</p>
+                  <p className="truncate text-xs text-muted">
+                    {s.username && <span className="font-bold text-ink/70">@{s.username} · </span>}
+                    {s.class_name || "Sinf ko‘rsatilmagan"}
+                  </p>
                 </div>
                 <span className="font-display text-lg font-semibold text-accent">{(s.points ?? 0).toLocaleString("uz-UZ")}</span>
                 <button onClick={() => openEdit(s)} className="btn btn-ghost btn-sm" aria-label="Tahrirlash">✏️</button>
@@ -178,9 +244,12 @@ export default function AdminStudentsPage() {
           </ul>
         </div>
       )}
-      <p className="mt-3 text-xs text-muted">Adminlar soni: {admins}. Ballar faqat tasdiqlangan topshiriqlar orqali o‘zgaradi.</p>
+      <p className="mt-3 text-xs text-muted">
+        Adminlar: {admins} · Mentorlar: {mentors}. Ballar faqat tasdiqlangan topshiriqlar orqali o‘zgaradi.
+        {!isOwner && " Adminlarni faqat bosh admin tayinlaydi."}
+      </p>
 
-      <Modal open={!!editing} onClose={() => !saving && setEditing(null)} title="O‘quvchini tahrirlash" subtitle={editing?.full_name ?? undefined}>
+      <Modal open={!!editing} onClose={() => !saving && setEditing(null)} title="Foydalanuvchini tahrirlash" subtitle={editing?.full_name ?? undefined}>
         <form onSubmit={save} className="space-y-4">
           <div>
             <label className="label" htmlFor="s-name">Ism va familiya</label>
@@ -206,12 +275,64 @@ export default function AdminStudentsPage() {
             )}
           </div>
           {formError && <Alert tone="error">{formError}</Alert>}
-          <div className="flex flex-col-reverse gap-3 border-t border-line pt-4 sm:flex-row sm:items-center">
-            {editing && editing.id !== user?.id && (
-              <button type="button" onClick={() => { setRoleChange(editing); setEditing(null); }} className="btn btn-ghost btn-sm sm:mr-auto">
-                {editing.role === "admin" ? "Adminlikdan olish" : "⚙️ Admin qilish"}
-              </button>
-            )}
+
+          {editing && (
+            <div className="rounded-2xl border border-line bg-white/[0.03] p-4">
+              <p className="label mb-2">Rol</p>
+              {editing.is_owner ? (
+                <p className="text-sm text-muted">👑 Bosh admin. Uning roli faqat Supabase’dan o‘zgartiriladi.</p>
+              ) : !canChangeRole(editing) ? (
+                <p className="text-sm text-muted">
+                  {ROLE_LABEL[editing.role ?? "student"]}.{" "}
+                  {editing.id === user?.id ? "O‘z rolingizni o‘zgartira olmaysiz." : "Admin rolini faqat bosh admin o‘zgartiradi."}
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {ROLES.filter((r) => r !== "admin" || isOwner).map((r) => {
+                    const current = (editing.role ?? "student") === r;
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        disabled={current}
+                        onClick={() => { setRoleChange({ s: editing, next: r }); setEditing(null); }}
+                        className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
+                          current ? "border-forest-600 bg-glow text-forest-950" : "border-line bg-surface hover:border-forest-500/50"
+                        }`}
+                      >
+                        {ROLE_LABEL[r]}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {editing && canResetPassword(editing) && (
+            <div className="rounded-2xl border border-line bg-white/[0.03] p-4">
+              <label className="label" htmlFor="s-pw">Parolni tiklash</label>
+              <div className="flex gap-2">
+                <input
+                  id="s-pw"
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Yangi parol (8+ belgi)"
+                  autoComplete="new-password"
+                  maxLength={72}
+                  className="input"
+                />
+                <button type="button" onClick={resetPassword} disabled={pwBusy || newPassword.length < 8} className="btn btn-lime shrink-0 rounded-2xl">
+                  {pwBusy ? <Spinner /> : "O‘rnatish"}
+                </button>
+              </div>
+              <p className="hint">O‘quvchi parolini unutsa, yangisini shu yerda qo‘yib, unga ayting.</p>
+              {pwMsg && <div className="mt-3"><Alert tone={pwMsg.error ? "error" : "success"}>{pwMsg.text}</Alert></div>}
+            </div>
+          )}
+
+          <div className="flex flex-col-reverse gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-end">
             <button type="button" onClick={() => setEditing(null)} disabled={saving} className="btn btn-ghost">Bekor qilish</button>
             <button type="submit" disabled={saving} className="btn btn-primary">{saving && <Spinner />} Saqlash</button>
           </div>
@@ -221,15 +342,11 @@ export default function AdminStudentsPage() {
       <ConfirmDialog
         open={!!roleChange}
         busy={saving}
-        tone={roleChange?.role === "admin" ? "danger" : "primary"}
-        title={roleChange?.role === "admin" ? "Adminlikdan olasizmi?" : "Admin qilasizmi?"}
-        text={
-          roleChange?.role === "admin"
-            ? `${roleChange?.full_name} admin panelga kira olmaydi.`
-            : `${roleChange?.full_name} barcha topshiriqlarni tasdiqlash va saytni boshqarish huquqiga ega bo‘ladi.`
-        }
+        tone={roleChange?.next === "student" ? "danger" : "primary"}
+        title={roleChange ? `${roleChange.s.full_name || "Foydalanuvchi"} — ${ROLE_LABEL[roleChange.next]}?` : ""}
+        text={roleChange ? ROLE_TEXT[roleChange.next] : ""}
         confirmLabel="Ha, tasdiqlayman"
-        onConfirm={toggleRole}
+        onConfirm={changeRole}
         onCancel={() => setRoleChange(null)}
       />
     </>

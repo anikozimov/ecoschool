@@ -21,21 +21,22 @@ const AdminContext = createContext<{ counts: Counts; refreshCounts: () => Promis
 
 export const useAdmin = () => useContext(AdminContext);
 
+// mentor: true — mentor ham ko'radi (faqat tekshiruv bo'limlari)
 const NAV = [
-  { href: "/admin", label: "Boshqaruv paneli", icon: "📊", key: null, group: null },
-  { href: "/admin/challenges", label: "Challenge topshiriqlari", icon: "🎯", key: "challenges", group: "Tekshiruv" },
-  { href: "/admin/recycling", label: "Recycling", icon: "♻️", key: "recycling", group: null },
-  { href: "/admin/research", label: "Tadqiqotlar", icon: "📚", key: "research", group: null },
-  { href: "/admin/challenge-list", label: "Challenge ro‘yxati", icon: "📝", key: null, group: "Sayt" },
-  { href: "/admin/events", label: "Tadbirlar", icon: "📅", key: null, group: null },
-  { href: "/admin/students", label: "O‘quvchilar", icon: "👥", key: null, group: null },
-  { href: "/admin/schools", label: "Maktab va sinflar", icon: "🏫", key: null, group: null },
-  { href: "/admin/content", label: "Sahifa matnlari", icon: "✍️", key: null, group: null },
+  { href: "/admin", label: "Boshqaruv paneli", icon: "📊", key: null, group: null, mentor: true },
+  { href: "/admin/challenges", label: "Challenge topshiriqlari", icon: "🎯", key: "challenges", group: "Tekshiruv", mentor: true },
+  { href: "/admin/recycling", label: "Recycling", icon: "♻️", key: "recycling", group: null, mentor: true },
+  { href: "/admin/research", label: "Tadqiqotlar", icon: "📚", key: "research", group: null, mentor: true },
+  { href: "/admin/challenge-list", label: "Challenge ro‘yxati", icon: "📝", key: null, group: "Sayt", mentor: false },
+  { href: "/admin/events", label: "Tadbirlar", icon: "📅", key: null, group: null, mentor: false },
+  { href: "/admin/students", label: "Foydalanuvchilar", icon: "👥", key: null, group: null, mentor: false },
+  { href: "/admin/schools", label: "Maktab va sinflar", icon: "🏫", key: null, group: null, mentor: false },
+  { href: "/admin/content", label: "Sahifa matnlari", icon: "✍️", key: null, group: null, mentor: false },
 ] as const;
 
 export default function AdminShell({ children }: { children: ReactNode }) {
   const pathname = useAppPathname();
-  const { user, profile, isAdmin, loading } = useSession();
+  const { user, profile, isAdmin, isStaff, isOwner, loading } = useSession();
   const [supabase] = useState(() => createClient());
   const [counts, setCounts] = useState<Counts>({ challenges: 0, recycling: 0, research: 0 });
   const [menuOpen, setMenuOpen] = useState(false);
@@ -50,8 +51,8 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   }, [supabase, profile?.school_id]);
 
   useEffect(() => {
-    if (isAdmin) refreshCounts();
-  }, [isAdmin, refreshCounts]);
+    if (isStaff) refreshCounts();
+  }, [isStaff, refreshCounts]);
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
@@ -68,14 +69,14 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (!user || !isStaff) {
     return (
       <div className="grid min-h-screen place-items-center bg-cream p-6">
         <div className="card max-w-md p-10 text-center">
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-coral-100 text-3xl">🔒</div>
           <h1 className="mt-5 text-3xl font-semibold">Ruxsat yo‘q</h1>
           <p className="mt-2 text-sm leading-6 text-muted">
-            {user ? "Bu bo‘lim faqat administratorlar uchun." : "Admin panelga kirish uchun avval tizimga kiring."}
+            {user ? "Bu bo‘lim faqat administrator va mentorlar uchun." : "Admin panelga kirish uchun avval tizimga kiring."}
           </p>
           <div className="mt-6 flex justify-center gap-3">
             <Link href="/" className="btn btn-ghost">Bosh sahifa</Link>
@@ -88,6 +89,10 @@ export default function AdminShell({ children }: { children: ReactNode }) {
 
   const total = counts.challenges + counts.recycling + counts.research;
   const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
+  const nav = NAV.filter((item) => isAdmin || item.mentor);
+  const roleLabel = isOwner ? "Bosh admin" : isAdmin ? "Administrator" : "Mentor";
+  // Mentor sayt sozlamalari sahifasini ochsa (havola orqali) — kirishga ruxsat yo'q
+  const blocked = !isAdmin && NAV.some((n) => !n.mentor && isActive(n.href));
 
   const sidebar = (
     <div className="relative flex h-full flex-col">
@@ -100,12 +105,12 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-leaf-400 opacity-60" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-leaf-400" />
         </span>
-        Admin rejimi faol
+        {roleLabel} rejimi faol
       </div>
 
       <p className="mt-7 px-3 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/35">Boshqaruv</p>
       <nav className="mt-3 space-y-1">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active = isActive(item.href);
           const count = item.key ? counts[item.key] : 0;
           return (
@@ -173,7 +178,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-extrabold text-white">{profile?.full_name || "Admin"}</p>
-            <p className="text-xs text-white/45">Administrator</p>
+            <p className="text-xs text-white/45">{roleLabel}</p>
           </div>
         </div>
       </div>
@@ -217,7 +222,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
               ☰
             </button>
             <div className="hidden items-center gap-2 text-sm font-bold text-muted sm:flex">
-              <span>Admin</span>
+              <span>{roleLabel}</span>
               <span className="text-line">/</span>
               <span className="text-ink">{current?.label ?? "Panel"}</span>
             </div>
@@ -253,7 +258,18 @@ export default function AdminShell({ children }: { children: ReactNode }) {
               </span>
             </div>
           </header>
-          <main className="relative flex-1 px-4 py-6 sm:px-8 sm:py-8">{children}</main>
+          <main className="relative flex-1 px-4 py-6 sm:px-8 sm:py-8">
+            {blocked ? (
+              <div className="card mx-auto mt-10 max-w-md p-10 text-center">
+                <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-coral-100 text-3xl">🔒</div>
+                <h1 className="mt-5 text-2xl font-semibold">Bu bo‘lim faqat admin uchun</h1>
+                <p className="mt-2 text-sm leading-6 text-muted">Mentor sifatida siz topshiriqlarni tekshirishingiz mumkin.</p>
+                <Link href="/admin" className="btn btn-primary mt-6">Boshqaruv paneli</Link>
+              </div>
+            ) : (
+              children
+            )}
+          </main>
         </div>
       </div>
     </AdminContext.Provider>

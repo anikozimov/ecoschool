@@ -29,7 +29,7 @@ const materials = {
 } as const;
 
 export default function RecyclingPage() {
-  const { user, loading: sessionLoading, isAdmin } = useSession();
+  const { user, loading: sessionLoading, isStaff } = useSession();
   const content = useSiteContent("recycling");
   const [supabase] = useState(() => createClient());
   const [material, setMaterial] = useState<"paper" | "plastic">("paper");
@@ -193,9 +193,9 @@ export default function RecyclingPage() {
             </div>
           ))}
         </div>
-        {isAdmin && (
+        {isStaff && (
           <Link href="/admin/recycling" className="btn btn-lime btn-sm mt-5">
-            ⚙️ Topshiruvlarni tekshirish (Admin)
+            ⚙️ Topshiruvlarni tekshirish
           </Link>
         )}
       </PageHero>

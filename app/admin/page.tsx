@@ -80,7 +80,7 @@ function Donut({ parts, size = 168 }: { parts: { value: number; color: string }[
 }
 
 export default function AdminDashboard() {
-  const { profile } = useSession();
+  const { profile, isAdmin } = useSession();
   const { counts } = useAdmin();
   const [supabase] = useState(() => createClient());
   const [impact, setImpact] = useState<Impact | null>(null);
@@ -237,9 +237,11 @@ export default function AdminDashboard() {
                     ⚡ Tekshirishni boshlash
                   </Link>
                 )}
+{isAdmin && (
                 <Link href="/admin/events" className="btn bg-white/10 px-6 text-white ring-1 ring-white/20 hover:bg-white/20">
                   + Tadbir qo‘shish
                 </Link>
+                )}
               </div>
             </div>
             <div className="relative mx-auto hidden h-52 w-52 md:block">
@@ -461,7 +463,7 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-semibold">Kelgusi tadbirlar</h2>
             <p className="text-sm text-muted">Eko-taqvimdagi eng yaqin sanalar</p>
           </div>
-          <Link href="/admin/events" className="btn btn-primary btn-sm">Boshqarish →</Link>
+          {isAdmin && <Link href="/admin/events" className="btn btn-primary btn-sm">Boshqarish →</Link>}
         </div>
         <div className="grid gap-px bg-line sm:grid-cols-3">
           {upcoming === null ? (

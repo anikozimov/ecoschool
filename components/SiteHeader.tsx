@@ -9,7 +9,7 @@ import Portal from "./Portal";
 
 export default function SiteHeader() {
   const pathname = useAppPathname();
-  const { user, profile, isAdmin, loading } = useSession();
+  const { user, profile, isAdmin, isStaff, loading } = useSession();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -59,9 +59,9 @@ export default function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {isAdmin && (
+          {isStaff && (
             <Link href="/admin" className="btn btn-lime btn-sm hidden sm:inline-flex">
-              ⚙️ Admin
+              ⚙️ {isAdmin ? "Admin" : "Mentor"}
             </Link>
           )}
           {loading ? (
@@ -121,9 +121,9 @@ export default function SiteHeader() {
               <span className="font-bold">Telegram</span>
             </a>
           </div>
-          {isAdmin && (
+          {isStaff && (
             <Link href="/admin" className="btn btn-lime mt-4 w-full">
-              ⚙️ Admin panel
+              ⚙️ {isAdmin ? "Admin panel" : "Mentor paneli"}
             </Link>
           )}
         </div>

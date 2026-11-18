@@ -8,6 +8,7 @@ import { DEMO, hashQuery, useAppRouter } from "@/lib/nav";
 import { createClient } from "@/lib/supabase";
 import { Alert, Spinner } from "@/components/ui";
 import { Logo } from "@/components/brand";
+import { loginToEmail, normalizeUsername, usernameError } from "@/lib/login";
 
 type SchoolClass = { class_name: string };
 
@@ -19,7 +20,7 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [className, setClassName] = useState("");
   const [schoolCode, setSchoolCode] = useState("");
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -93,17 +94,23 @@ export default function LoginPage() {
       if (!className) return setError("Iltimos, sinfingizni tanlang.");
       if (!classes.some((item) => item.class_name === className))
         return setError("Iltimos, maktab sinflarini qayta yuklang.");
+      const uErr = usernameError(login);
+      if (uErr) return setError(uErr);
       if (password.length < 8) return setError("Parol kamida 8 ta belgidan iborat bo‘lishi kerak.");
+    } else if (!login.trim()) {
+      return setError("Loginingizni kiriting.");
     }
 
     setLoading(true);
     try {
       if (mode === "register") {
+        const username = normalizeUsername(login);
         const { data, error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
+          email: loginToEmail(username),
           password,
           options: {
             data: {
+              username,
               full_name: name.trim(),
               class_name: className,
               school_code: schoolCode.trim().toUpperCase(),
@@ -113,16 +120,21 @@ export default function LoginPage() {
 
         if (signUpError) {
           console.error("Sign up error:", signUpError);
+          const msg = signUpError.message.toLowerCase();
           setError(
-            signUpError.message.toLowerCase().includes("password")
-              ? "Parol talablarga javob bermaydi. Kuchliroq parol tanlang."
-              : "Ro‘yxatdan o‘tib bo‘lmadi. Ma’lumotlarni tekshirib, qayta urinib ko‘ring."
+            msg.includes("already") || msg.includes("registered")
+              ? "Bu login band. Boshqa login tanlang."
+              : msg.includes("password")
+                ? "Parol talablarga javob bermaydi. Kuchliroq parol tanlang."
+                : msg.includes("email")
+                  ? "Ro‘yxatdan o‘tish hali sozlanmagan (Supabase Auth sozlamalari). Administratorga murojaat qiling."
+                  : "Ro‘yxatdan o‘tib bo‘lmadi. Ma’lumotlarni tekshirib, qayta urinib ko‘ring."
           );
           return;
         }
 
         if (!data.user || data.user.identities?.length === 0) {
-          setError("Bu email bilan akkaunt mavjud bo‘lishi mumkin. “Kirish” bo‘limidan foydalaning.");
+          setError("Bu login band. Boshqa login tanlang yoki “Kirish” bo‘limidan foydalaning.");
           return;
         }
 
@@ -131,17 +143,21 @@ export default function LoginPage() {
           router.refresh();
         } else {
           setMessage(
-            "Akkauntingiz yaratildi! Emailingizga tasdiqlash xabari yuborildi — Inbox va Spam papkasini tekshiring."
+            "Akkaunt yaratildi, lekin darhol kirib bo‘lmadi. Administrator Supabase’da “Confirm email” sozlamasini o‘chirishi kerak."
           );
         }
       } else {
         const { error: loginError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: loginToEmail(login),
           password,
         });
 
         if (loginError) {
-          setError("Email yoki parol noto‘g‘ri. Qayta urinib ko‘ring.");
+          setError(
+            loginError.message.toLowerCase().includes("not confirmed")
+              ? "Akkaunt hali tasdiqlanmagan. Administratorga murojaat qiling."
+              : "Login yoki parol noto‘g‘ri. Qayta urinib ko‘ring."
+          );
           return;
         }
 
@@ -214,7 +230,7 @@ export default function LoginPage() {
           {process.env.NEXT_PUBLIC_DEMO === "1" && (
             <div className="mb-6">
               <Alert tone="info">
-                <strong>Demo rejim:</strong> istalgan email va parol (8+ belgi) bilan kiring. Siz admin sifatida kirasiz,
+                <strong>Demo rejim:</strong> istalgan login va parol (8+ belgi) bilan kiring. Siz admin sifatida kirasiz,
                 barcha ma’lumotlar sinov uchun.
               </Alert>
             </div>
@@ -327,17 +343,24 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label className="label" htmlFor="email">Email manzil</label>
+              <label className="label" htmlFor="login">Login</label>
               <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="siz@email.com"
-                autoComplete="email"
+                id="login"
+                type="text"
+                value={login}
+                onChange={(e) => setLogin(mode === "register" ? e.target.value.toLowerCase().replace(/\s/g, "") : e.target.value)}
+                placeholder={mode === "register" ? "Masalan: aziza_k" : "Loginingiz"}
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={mode === "register" ? 24 : 120}
                 required
                 className="input"
               />
+              {mode === "register" && (
+                <p className="hint">Lotin harflari, raqamlar, nuqta yoki _ (3–24 belgi). Shu login va parol bilan kirasiz.</p>
+              )}
             </div>
 
             <div>

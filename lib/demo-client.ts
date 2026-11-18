@@ -16,12 +16,12 @@ const day = (d: number) => {
 
 const DB: Record<string, any[]> = {
   profiles: [
-    { id: UID, full_name: "Dilnoza Rahimova", class_name: "9-A", school_code: "ECO21", school_id: 1, points: 235, role: "admin" },
-    { id: "s-madina", full_name: "Madina Yusupova", class_name: "9-A", school_code: "ECO21", school_id: 1, points: 420, role: "student" },
-    { id: "s-aziz", full_name: "Aziz Karimov", class_name: "8-B", school_code: "ECO21", school_id: 1, points: 365, role: "student" },
-    { id: "s-jasur", full_name: "Jasur Toshmatov", class_name: "10-A", school_code: "ECO21", school_id: 1, points: 310, role: "student" },
-    { id: "s-sevara", full_name: "Sevara Olimova", class_name: "7-V", school_code: "ECO21", school_id: 1, points: 180, role: "student" },
-    { id: "s-bekzod", full_name: "Bekzod Aliyev", class_name: "8-B", school_code: "ECO21", school_id: 1, points: 95, role: "student" },
+    { id: UID, full_name: "Dilnoza Rahimova", class_name: "9-A", school_code: "ECO21", school_id: 1, points: 235, role: "admin", username: "dilnoza", is_owner: true },
+    { id: "s-madina", full_name: "Madina Yusupova", class_name: "9-A", school_code: "ECO21", school_id: 1, points: 420, role: "mentor", username: "madina_y", is_owner: false },
+    { id: "s-aziz", full_name: "Aziz Karimov", class_name: "8-B", school_code: "ECO21", school_id: 1, points: 365, role: "student", username: "aziz.k", is_owner: false },
+    { id: "s-jasur", full_name: "Jasur Toshmatov", class_name: "10-A", school_code: "ECO21", school_id: 1, points: 310, role: "admin", username: "jasur", is_owner: false },
+    { id: "s-sevara", full_name: "Sevara Olimova", class_name: "7-V", school_code: "ECO21", school_id: 1, points: 180, role: "student", username: "sevara", is_owner: false },
+    { id: "s-bekzod", full_name: "Bekzod Aliyev", class_name: "8-B", school_code: "ECO21", school_id: 1, points: 95, role: "student", username: "bekzod_a", is_owner: false },
   ],
   site_content: [],
   schools: [
@@ -64,6 +64,7 @@ const sortClasses = (list: any[]) =>
   [...list].sort((a, b) => (parseInt(a.class_name) || 99) - (parseInt(b.class_name) || 99) || a.class_name.localeCompare(b.class_name));
 
 const RPC: Record<string, (p: any) => any> = {
+  admin_set_password: () => null,
   get_school_overall_impact: () => [
     { paper_kg: 142.5, plastic_kg: 63.2, recycling_kg: 205.7, recycling_points: 5140, approved_challenges: 87, challenge_points: 2310, total_points: 7450, active_students: 126 },
   ],
@@ -243,7 +244,7 @@ class Query {
         }
         if (this.payload.status === "published" && r.student_id === UID) DB.profiles[0].points += r.awarded_points;
       });
-      return { data: hit.map((r) => ({ id: r.id })), error: null };
+      return { data: structuredClone(hit), error: null };
     }
 
     if (this.op === "delete") {
