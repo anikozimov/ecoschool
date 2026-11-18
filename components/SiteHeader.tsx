@@ -5,6 +5,7 @@ import { useAppPathname } from "@/lib/nav";
 import { useEffect, useState } from "react";
 import { initials, useSession } from "@/lib/session";
 import { Logo, NAV, TELEGRAM_URL } from "./brand";
+import Portal from "./Portal";
 
 export default function SiteHeader() {
   const pathname = useAppPathname();
@@ -98,7 +99,8 @@ export default function SiteHeader() {
 
       {/* Mobil menyu */}
       {open && (
-        <div className="fixed inset-x-0 bottom-0 top-[72px] z-40 overflow-y-auto bg-cream px-5 pb-10 pt-4 lg:hidden animate-rise">
+<Portal>
+        <div className="fixed inset-x-0 bottom-0 top-[72px] z-[60] overflow-y-auto bg-cream px-5 pb-10 pt-4 lg:hidden animate-rise">
           <div className="grid grid-cols-2 gap-3">
             {NAV.map((item) => (
               <Link
@@ -125,6 +127,7 @@ export default function SiteHeader() {
             </Link>
           )}
         </div>
+        </Portal>
       )}
     </header>
   );

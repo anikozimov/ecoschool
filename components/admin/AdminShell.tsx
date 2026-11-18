@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase";
 import { initials, useSession } from "@/lib/session";
 import { Logo } from "@/components/brand";
 import { Skeleton } from "@/components/ui";
+import Portal from "@/components/Portal";
 
 type Counts = { challenges: number; recycling: number; research: number };
 
@@ -192,10 +193,12 @@ export default function AdminShell({ children }: { children: ReactNode }) {
         </aside>
 
         {menuOpen && (
+          <Portal>
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-forest-950/60 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
             <aside className={`absolute inset-y-0 left-0 w-72 animate-rise ${asideClass}`}>{sidebar}</aside>
           </div>
+          </Portal>
         )}
 
         <div className="relative flex min-w-0 flex-1 flex-col lg:pl-72">
@@ -299,6 +302,7 @@ export function Lightbox({ src, onClose }: { src: string | null; onClose: () => 
   }, [src, onClose]);
   if (!src) return null;
   return (
+    <Portal>
     <div className="fixed inset-0 z-[110] grid place-items-center bg-black/85 p-4" onClick={onClose}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt="Dalil rasmi" className="max-h-[90vh] max-w-full rounded-2xl object-contain" />
@@ -306,5 +310,6 @@ export function Lightbox({ src, onClose }: { src: string | null; onClose: () => 
         ✕
       </button>
     </div>
+    </Portal>
   );
 }

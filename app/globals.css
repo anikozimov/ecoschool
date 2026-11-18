@@ -43,7 +43,7 @@
   --shadow-lift: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 30px 60px -20px rgb(0 0 0 / 0.9), 0 0 40px -10px rgb(166 235 122 / 0.25);
 
   --animate-float: float 6s ease-in-out infinite;
-  --animate-rise: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-rise: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
   --animate-sway: sway 5s ease-in-out infinite;
 
   @keyframes float {
@@ -359,7 +359,7 @@ h1, h2, h3, .font-display {
 }
 
 /* Sahifaga kirish animatsiyasi */
-.page-enter { animation: page-enter 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.page-enter { animation: page-enter 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
 @keyframes page-enter {
   from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
   to { opacity: 1; transform: none; filter: none; }

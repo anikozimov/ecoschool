@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import Portal from "./Portal";
 import { FallingLeaves, TiltCard } from "./effects";
 import type { ReactNode } from "react";
 
@@ -145,6 +146,7 @@ export function Modal({
   if (!open) return null;
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-forest-950/45 backdrop-blur-sm" onClick={onClose} />
       <div
@@ -153,7 +155,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] bg-surface p-6 shadow-2xl outline-none animate-rise sm:rounded-[2rem] sm:p-8 ${
+        className={`relative max-h-[92vh] w-full overflow-y-auto overscroll-contain rounded-t-[2rem] border border-white/10 bg-[#0c2218] p-6 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] outline-none animate-rise sm:rounded-[2rem] sm:p-8 ${
           size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg"
         }`}
       >
@@ -174,6 +176,7 @@ export function Modal({
         <div className="mt-6">{children}</div>
       </div>
     </div>
+    </Portal>
   );
 }
 
