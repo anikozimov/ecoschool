@@ -186,7 +186,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   return (
     <AdminContext.Provider value={{ counts, refreshCounts }}>
       <div className="flex min-h-screen bg-cream">
-        <aside className={`fixed inset-y-0 left-0 hidden w-72 lg:block ${asideClass}`}>
+        <aside className={`fixed inset-y-0 left-0 z-40 hidden w-72 lg:block ${asideClass}`}>
           <div className="pointer-events-none absolute inset-0 leaf-pattern opacity-[0.08]" />
           {sidebar}
         </aside>
