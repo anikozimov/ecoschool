@@ -1,0 +1,310 @@
+"use client";
+
+import Image from "next/image";
+import timoImg from "@/public/timo.png";
+import Link from "next/link";
+import { useAppPathname } from "@/lib/nav";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { createClient } from "@/lib/supabase";
+import { initials, useSession } from "@/lib/session";
+import { Logo } from "@/components/brand";
+import { Skeleton } from "@/components/ui";
+
+type Counts = { challenges: number; recycling: number; research: number };
+
+const AdminContext = createContext<{ counts: Counts; refreshCounts: () => Promise<void> }>({
+  counts: { challenges: 0, recycling: 0, research: 0 },
+  refreshCounts: async () => {},
+});
+
+export const useAdmin = () => useContext(AdminContext);
+
+const NAV = [
+  { href: "/admin", label: "Boshqaruv paneli", icon: "📊", key: null, group: null },
+  { href: "/admin/challenges", label: "Challenge topshiriqlari", icon: "🎯", key: "challenges", group: "Tekshiruv" },
+  { href: "/admin/recycling", label: "Recycling", icon: "♻️", key: "recycling", group: null },
+  { href: "/admin/research", label: "Tadqiqotlar", icon: "📚", key: "research", group: null },
+  { href: "/admin/challenge-list", label: "Challenge ro‘yxati", icon: "📝", key: null, group: "Sayt" },
+  { href: "/admin/events", label: "Tadbirlar", icon: "📅", key: null, group: null },
+  { href: "/admin/students", label: "O‘quvchilar", icon: "👥", key: null, group: null },
+  { href: "/admin/schools", label: "Maktab va sinflar", icon: "🏫", key: null, group: null },
+  { href: "/admin/content", label: "Sahifa matnlari", icon: "✍️", key: null, group: null },
+] as const;
+
+export default function AdminShell({ children }: { children: ReactNode }) {
+  const pathname = useAppPathname();
+  const { user, profile, isAdmin, loading } = useSession();
+  const [supabase] = useState(() => createClient());
+  const [counts, setCounts] = useState<Counts>({ challenges: 0, recycling: 0, research: 0 });
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const refreshCounts = useCallback(async () => {
+    const pending = (table: string) =>
+      supabase.from(table).select("id", { count: "exact", head: true }).eq("status", "pending");
+    let recyclingQuery = pending("recycling_submissions");
+    if (profile?.school_id) recyclingQuery = recyclingQuery.eq("school_id", profile.school_id);
+    const [c, r, t] = await Promise.all([pending("challenge_submissions"), recyclingQuery, pending("eco_research")]);
+    setCounts({ challenges: c.count ?? 0, recycling: r.count ?? 0, research: t.count ?? 0 });
+  }, [supabase, profile?.school_id]);
+
+  useEffect(() => {
+    if (isAdmin) refreshCounts();
+  }, [isAdmin, refreshCounts]);
+
+  useEffect(() => setMenuOpen(false), [pathname]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen">
+        <div className="hidden w-72 bg-forest-900 lg:block" />
+        <div className="flex-1 space-y-4 p-8">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-40" />
+          <Skeleton className="h-80" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-cream p-6">
+        <div className="card max-w-md p-10 text-center">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-coral-100 text-3xl">🔒</div>
+          <h1 className="mt-5 text-3xl font-semibold">Ruxsat yo‘q</h1>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            {user ? "Bu bo‘lim faqat administratorlar uchun." : "Admin panelga kirish uchun avval tizimga kiring."}
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link href="/" className="btn btn-ghost">Bosh sahifa</Link>
+            {!user && <Link href="/login" className="btn btn-primary">Kirish</Link>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const total = counts.challenges + counts.recycling + counts.research;
+  const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
+
+  const sidebar = (
+    <div className="relative flex h-full flex-col">
+      <Link href="/admin" className="px-2">
+        <Logo light />
+      </Link>
+
+      <div className="mt-7 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-xs font-bold text-white/70">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-leaf-400 opacity-60" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-leaf-400" />
+        </span>
+        Admin rejimi faol
+      </div>
+
+      <p className="mt-7 px-3 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/35">Boshqaruv</p>
+      <nav className="mt-3 space-y-1">
+        {NAV.map((item) => {
+          const active = isActive(item.href);
+          const count = item.key ? counts[item.key] : 0;
+          return (
+            <div key={item.href}>
+            {item.group && (
+              <p className="mb-2 mt-5 px-3 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white/35">{item.group}</p>
+            )}
+            <Link
+              href={item.href}
+              className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-2.5 text-sm font-bold transition-all duration-300 ${
+                active
+                  ? "bg-gradient-to-r from-leaf-400 to-leaf-300 text-forest-950 shadow-[0_10px_30px_-10px_rgb(155_210_77/0.7)]"
+                  : "text-white/70 hover:translate-x-1 hover:bg-white/[0.08] hover:text-white"
+              }`}
+            >
+              <span
+                className={`grid h-9 w-9 place-items-center rounded-xl text-base transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6 ${
+                  active ? "bg-white/[0.06]" : "bg-white/[0.08]"
+                }`}
+              >
+                {item.icon}
+              </span>
+              <span className="flex-1">{item.label}</span>
+              {count > 0 && (
+                <span
+                  className={`min-w-6 rounded-full px-2 py-0.5 text-center text-[11px] font-black ${
+                    active ? "bg-forest-900 text-leaf-300" : "bg-coral-500 text-white shadow-[0_0_12px_rgb(217_87_59/0.6)]"
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
+            </Link>
+            </div>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto space-y-3">
+        {/* Timo yordamchi kartasi */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-forest-600 to-forest-800 p-4 pr-24 ring-1 ring-white/10">
+          <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-leaf-400/30 blur-2xl" />
+          <p className="relative text-sm font-extrabold text-white">
+            {total > 0 ? `${total} ta ish kutmoqda` : "Hammasi joyida!"}
+          </p>
+          <p className="relative mt-1 text-xs leading-5 text-white/60">
+            {total > 0 ? "O‘quvchilar natijangizni kutishyapti 🌱" : "Ajoyib ish, Eco Team! 🎉"}
+          </p>
+          <Image
+            src={timoImg}
+            alt=""
+            width={120}
+            height={117}
+            className="absolute -bottom-3 -right-3 w-24 animate-float drop-shadow-xl"
+          />
+        </div>
+
+        <Link href="/" className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold text-white/70 transition hover:bg-white/[0.08] hover:text-white">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/[0.08]">🌐</span>
+          Saytga qaytish
+        </Link>
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-leaf-300 to-leaf-500 text-sm font-black text-forest-950">
+            {initials(profile?.full_name)}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-extrabold text-white">{profile?.full_name || "Admin"}</p>
+            <p className="text-xs text-white/45">Administrator</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const asideClass =
+    "overflow-hidden bg-[radial-gradient(120%_60%_at_0%_0%,#27744b_0%,transparent_60%),linear-gradient(180deg,#133a26_0%,#0e2a1c_100%)] p-5";
+  const current = NAV.find((n) => isActive(n.href));
+
+  return (
+    <AdminContext.Provider value={{ counts, refreshCounts }}>
+      <div className="flex min-h-screen bg-cream">
+        <aside className={`fixed inset-y-0 left-0 hidden w-72 lg:block ${asideClass}`}>
+          <div className="pointer-events-none absolute inset-0 leaf-pattern opacity-[0.08]" />
+          {sidebar}
+        </aside>
+
+        {menuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-forest-950/60 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
+            <aside className={`absolute inset-y-0 left-0 w-72 animate-rise ${asideClass}`}>{sidebar}</aside>
+          </div>
+        )}
+
+        <div className="relative flex min-w-0 flex-1 flex-col lg:pl-72">
+          {/* Fon bezaklari */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="blob absolute -right-40 -top-40 h-[28rem] w-[28rem] bg-leaf-200/50 blur-3xl" />
+            <div className="blob absolute -left-20 top-[40%] h-80 w-80 bg-sand-200/50 blur-3xl [animation-delay:-6s]" />
+          </div>
+
+          <header className="sticky top-0 z-30 flex h-[68px] items-center gap-3 border-b border-white/60 bg-cream/75 px-4 backdrop-blur-xl sm:px-8">
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface shadow-sm lg:hidden"
+              aria-label="Menyu"
+            >
+              ☰
+            </button>
+            <div className="hidden items-center gap-2 text-sm font-bold text-muted sm:flex">
+              <span>Admin</span>
+              <span className="text-line">/</span>
+              <span className="text-ink">{current?.label ?? "Panel"}</span>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <span
+                className={`hidden items-center gap-2 rounded-full px-3.5 py-2 text-xs font-extrabold sm:flex ${
+                  total > 0 ? "bg-coral-100 text-coral-500" : "bg-leaf-100 text-accent"
+                }`}
+              >
+                {total > 0 ? (
+                  <>
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-coral-500" />
+                    {total} ta tekshiruv kutmoqda
+                  </>
+                ) : (
+                  "✓ Navbat bo‘sh"
+                )}
+              </span>
+              <Link
+                href={counts.challenges ? "/admin/challenges" : counts.recycling ? "/admin/recycling" : "/admin/research"}
+                className="relative grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-lg shadow-sm transition hover:-translate-y-0.5"
+                aria-label="Bildirishnomalar"
+              >
+                🔔
+                {total > 0 && (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-coral-500 px-1 text-[10px] font-black text-white ring-2 ring-cream">
+                    {total}
+                  </span>
+                )}
+              </Link>
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-forest-600 to-forest-800 text-xs font-black text-leaf-300 shadow-sm">
+                {initials(profile?.full_name)}
+              </span>
+            </div>
+          </header>
+          <main className="relative flex-1 px-4 py-6 sm:px-8 sm:py-8">{children}</main>
+        </div>
+      </div>
+    </AdminContext.Provider>
+  );
+}
+
+export function AdminTitle({
+  title,
+  text,
+  action,
+  icon,
+}: {
+  title: string;
+  text?: string;
+  action?: ReactNode;
+  icon?: string;
+}) {
+  return (
+    <div className="relative mb-7 overflow-hidden rounded-[2rem] bg-gradient-to-br from-forest-700 via-forest-800 to-forest-900 p-6 text-white shadow-[var(--shadow-lift)] sm:p-8">
+      <div className="absolute inset-0 leaf-pattern opacity-10" />
+      <div className="blob absolute -right-16 -top-20 h-64 w-64 bg-leaf-400/25 blur-2xl" />
+      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          {icon && (
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white/10 text-3xl ring-1 ring-white/15 backdrop-blur animate-float">
+              {icon}
+            </span>
+          )}
+          <div>
+            <h1 className="text-3xl font-semibold sm:text-4xl">{title}</h1>
+            {text && <p className="mt-1.5 max-w-2xl text-sm leading-6 text-white/65">{text}</p>}
+          </div>
+        </div>
+        {action}
+      </div>
+    </div>
+  );
+}
+
+export function Lightbox({ src, onClose }: { src: string | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!src) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [src, onClose]);
+  if (!src) return null;
+  return (
+    <div className="fixed inset-0 z-[110] grid place-items-center bg-black/85 p-4" onClick={onClose}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="Dalil rasmi" className="max-h-[90vh] max-w-full rounded-2xl object-contain" />
+      <button className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white" aria-label="Yopish">
+        ✕
+      </button>
+    </div>
+  );
+}

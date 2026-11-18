@@ -1,0 +1,11 @@
+{
+  // Cloudflare Workers — statik fayllar (Static Assets) sifatida joylash.
+  // Sayt brauzerda ishlaydi va Supabase'ga to'g'ridan-to'g'ri ulanadi, server kodi kerak emas.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "eco-school",
+  "compatibility_date": "2026-11-18",
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "404-page"
+  }
+}
