@@ -19,11 +19,8 @@ export const metadata: Metadata = {
   description:
     "ECO SCHOOL — maktab o‘quvchilari uchun ekologik platforma: challenge'lar, recycling, tadqiqotlar, reyting va eko-taqvim.",
   icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
-    ],
-    apple: "/apple-icon.png",
+    icon: [{ url: "/eco-icon.svg", type: "image/svg+xml" }],
+    apple: "/eco-apple-icon.png",
   },
 };
 
